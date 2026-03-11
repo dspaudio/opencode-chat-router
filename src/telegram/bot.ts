@@ -21,7 +21,7 @@ function truncate(text: string, max: number): string {
  * 포맷팅 기호가 아닌 데이터(변수) 부분에만 적용해야 한다.
  */
 function escapeMarkdownV2(text: string): string {
-  return text.replace(/([_*\[\]()~`>#+\-=|{}.!\\])/g, "\\$1");
+  return text.replace(/([_*\[\]()~`<>#+\-=|{}.!\\])/g, "\\$1");
 }
 
 function escapeHtmlEntities(text: string): string {
@@ -109,7 +109,7 @@ export function createTelegramBot(): Telegraf {
       "👋 OpenCode Router 연결됨\\!\n\n" +
         "사용 가능한 명령어:\n" +
         "/projects — 프로젝트 목록\n" +
-        "/switch <별칭> — 프로젝트 전환\n" +
+        "/switch \\<별칭\\> — 프로젝트 전환\n" +
         "/status — 현재 상태\n" +
         "/reset — 현재 프로젝트 세션 초기화\n" +
         "/help — 도움말\n\n" +
@@ -122,7 +122,7 @@ export function createTelegramBot(): Telegraf {
     ctx.reply(
       "사용 가능한 명령어:\n" +
         "/projects — 프로젝트 목록\n" +
-        "/switch <별칭> — 프로젝트 전환\n" +
+        "/switch \\<별칭\\> — 프로젝트 전환\n" +
         "/status — 현재 상태\n" +
         "/reset — 현재 프로젝트 세션 초기화\n" +
         "/help — 도움말",
