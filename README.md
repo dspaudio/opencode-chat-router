@@ -11,6 +11,7 @@
 3. [세션 3: 맥 잠자기 방지 설정](#세션-3-맥-잠자기-방지-설정)
 4. [세션 4: Agent is ready for input 메시지](#세션-4-agent-is-ready-for-input-메시지)
 5. [세션 5: 텔레그램 parse_mode 미적용 문제](#세션-5-텔레그램-parse_mode-미적용-문제)
+6. [세션 6: MarkdownV2 예약 문자 이스케이프 오류 수정](#세션-6-markdownv2-예약-문자-이스케이프-오류-수정)
 
 ---
 
@@ -387,6 +388,30 @@ Private repository 생성 완료: **https://github.com/(GitHub username)/opencod
 
 ---
 
+## 세션 6: MarkdownV2 예약 문자 이스케이프 오류 수정
+
+> 경로: `~/workspace/opencode-chat-router`
+
+### 대화 1: TelegramError 400 — MarkdownV2 파싱 실패
+
+**사용자:**
+> `/help` 또는 `/start` 명령 실행 시 Telegram API에서 400 에러 발생:
+> `Bad Request: can't parse entities: Character '>' is reserved and must be escaped with the preceding '\'`
+
+**OpenCode 응답:**
+원인 분석:
+- `/start`와 `/help` 핸들러에서 `/switch <별칭>` 텍스트가 `parse_mode: "MarkdownV2"`로 전송되는데, `<`와 `>`가 MarkdownV2 예약 문자임에도 이스케이프되지 않았음
+- 추가로 `escapeMarkdownV2()` 함수의 정규식에 `>`만 포함되어 있고 `<`가 누락되어 있어, 동적 데이터에서도 `<` 문자가 이스케이프되지 않는 잠재적 문제 존재
+
+수정 내용:
+1. `/start` 핸들러: `/switch <별칭>` → `/switch \<별칭\>` 이스케이프 처리
+2. `/help` 핸들러: 동일하게 이스케이프 처리
+3. `escapeMarkdownV2()` 정규식: `>` → `<>` 로 확장하여 `<` 문자도 이스케이프 대상에 포함
+
+변경 파일: `src/telegram/bot.ts`
+
+---
+
 ## 전체 타임라인 요약
 
 | 순서 | 내용 | 결과 |
@@ -409,3 +434,4 @@ Private repository 생성 완료: **https://github.com/(GitHub username)/opencod
 | 16 | 텔레그램 Markdown 렌더링 | marked + HTML parse_mode 전환 |
 | 17 | GitHub private repo 생성 | (GitHub username)/opencode-chat-router |
 | 18 | .env.example 정리 | 개인정보 placeholder로 교체 |
+| 19 | MarkdownV2 예약 문자 이스케이프 오류 | `<>` 이스케이프 + escapeMarkdownV2 함수 보완 |
