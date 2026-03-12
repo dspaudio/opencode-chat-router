@@ -12,6 +12,7 @@
 4. [세션 4: Agent is ready for input 메시지](#세션-4-agent-is-ready-for-input-메시지)
 5. [세션 5: 텔레그램 parse_mode 미적용 문제](#세션-5-텔레그램-parse_mode-미적용-문제)
 6. [세션 6: MarkdownV2 예약 문자 이스케이프 오류 수정](#세션-6-markdownv2-예약-문자-이스케이프-오류-수정)
+7. [세션 7: 글로벌 에러 핸들러 + 텔레그램 에러 알림](#세션-7-글로벌-에러-핸들러--텔레그램-에러-알림)
 
 ---
 
@@ -412,6 +413,48 @@ Private repository 생성 완료: **https://github.com/(GitHub username)/opencod
 
 ---
 
+## 세션 7: 글로벌 에러 핸들러 + 텔레그램 에러 알림
+
+> 경로: `~/workspace/opencode-chat-router`
+
+### 대화 1: 크래시 복구 도구 추천 (nodemon vs ts-node-dev)
+
+**사용자:**
+> 예상 못한 오류가 발생했을 때 자동으로 서비스가 재시작되도록 하려면 nodemon이나 ts-node-dev를 사용하라는데, 어떤 걸 추천해?
+
+**OpenCode 응답:**
+둘 다 비추천. 이미 `tsx watch`가 dev 스크립트에 설정되어 있고, nodemon은 크래시 시 자동 재시작이 기본 미지원, ts-node-dev는 ESM 호환성이 불안정. 프로덕션 크래시 복구가 목적이라면 pm2 같은 프로세스 매니저가 적합.
+
+---
+
+### 대화 2: tsx watch의 크래시 후 재시작 문제
+
+**사용자:**
+> tsx watch를 사용하고 있는 현 상황에서는 엔터키나 다른 동작을 해야 재시작되는 것 같아서 그랬어.
+
+**OpenCode 응답:**
+맞음. `tsx watch`는 파일 변경 기반이라, 프로세스 크래시 시 "다음 파일 변경까지 대기"함. 두 가지 해결 방안 제시:
+- A. 글로벌 에러 핸들러 (`uncaughtException`, `unhandledRejection`) — 프로세스가 안 죽게
+- B. A + pm2 — 죽더라도 즉시 재시작
+
+사용자가 B를 선택했다가 A만으로 충분하다고 변경.
+
+수정 내용: `src/index.ts`에 `uncaughtException`, `unhandledRejection` 핸들러 추가.
+
+---
+
+### 대화 3: 에러 발생 시 텔레그램으로 알림
+
+**사용자:**
+> 오류로 발생해서 로깅한 내용을 유저에게 대화 창으로 메시지를 보내줄 수 있을까?
+
+**OpenCode 응답:**
+`notifyError()` 함수 추가. 글로벌 에러 핸들러에서 `TELEGRAM_ALLOWED_USER_IDS`에 등록된 사용자에게 에러 타입 + 스택트레이스를 텔레그램 HTML 메시지로 전송. `sendMessage` 실패 시 `.catch(() => {})` 로 무시하여 2차 에러 방지.
+
+변경 파일: `src/index.ts`
+
+---
+
 ## 전체 타임라인 요약
 
 | 순서 | 내용 | 결과 |
@@ -435,3 +478,6 @@ Private repository 생성 완료: **https://github.com/(GitHub username)/opencod
 | 17 | GitHub private repo 생성 | (GitHub username)/opencode-chat-router |
 | 18 | .env.example 정리 | 개인정보 placeholder로 교체 |
 | 19 | MarkdownV2 예약 문자 이스케이프 오류 | `<>` 이스케이프 + escapeMarkdownV2 함수 보완 |
+| 20 | 크래시 복구 도구 비교 (nodemon vs ts-node-dev) | 기존 tsx watch 유지 추천 |
+| 21 | 글로벌 에러 핸들러 추가 | uncaughtException/unhandledRejection 처리 |
+| 22 | 에러 발생 시 텔레그램 알림 | notifyError()로 허용 사용자에게 전송 |
