@@ -53,3 +53,24 @@ function gracefulShutdown(signal: string): void {
 
 process.on("SIGINT", () => gracefulShutdown("SIGINT"));
 process.on("SIGTERM", () => gracefulShutdown("SIGTERM"));
+
+function notifyError(type: string, err: unknown): void {
+  if (!telegramBot) return;
+  const message = err instanceof Error ? err.stack ?? err.message : String(err);
+  const escaped = message.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  const truncated = escaped.length > 3000 ? escaped.slice(0, 3000) + "\n... (truncated)" : escaped;
+  const text = `⚠️ <b>${type}</b>\n<pre>${truncated}</pre>`;
+  for (const userId of config.telegram.allowedUserIds) {
+    telegramBot.telegram.sendMessage(userId, text, { parse_mode: "HTML" }).catch(() => {});
+  }
+}
+
+process.on("uncaughtException", (err) => {
+  console.error("[router] ❌ Uncaught Exception:", err);
+  notifyError("Uncaught Exception", err);
+});
+
+process.on("unhandledRejection", (reason) => {
+  console.error("[router] ❌ Unhandled Rejection:", reason);
+  notifyError("Unhandled Rejection", reason);
+});
