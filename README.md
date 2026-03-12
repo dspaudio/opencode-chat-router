@@ -1,6 +1,63 @@
-# OpenCode Chat Router - 개발 히스토리
+# OpenCode Chat Router
 
-이 문서는 OpenCode Chat Router 프로젝트의 전체 대화 히스토리를 세션별로 정리한 것입니다.
+Telegram(또는 Google Chat)에서 메시지를 보내면 [OpenCode](https://opencode.ai) AI 에이전트가 로컬 프로젝트에서 작업을 수행하고 결과를 돌려주는 브릿지 서버입니다.
+
+## 주요 기능
+
+- **멀티 프로젝트 전환** — `/switch <별칭>` 명령으로 여러 로컬 프로젝트를 오가며 작업
+- **Telegram 봇 연동** — Long polling 방식으로 ngrok 없이 로컬에서 바로 동작
+- **Google Chat 연동** — Webhook 기반 (선택 사항)
+- **세션 유지** — 프로젝트별로 대화 맥락을 유지하여 이전 대화를 이어갈 수 있음
+- **Markdown → HTML 변환** — OpenCode 응답의 마크다운을 Telegram HTML로 렌더링
+- **Permission 자동 승인** — OpenCode의 파일 수정/셸 실행 권한 요청을 자동 처리
+- **에러 알림** — 예상치 못한 서버 에러 발생 시 Telegram으로 즉시 알림
+- **사용자 화이트리스트** — 허용된 Telegram 사용자만 봇 사용 가능
+
+## 아키텍처
+
+```
+┌─────────────┐                    ┌──────────────────────┐
+│  Telegram    │  Long Polling      │  Chat Router         │
+│  (사용자)    │ ◄────────────────► │  Express + Telegraf  │
+└─────────────┘                    └──────────┬───────────┘
+                                              │ @opencode-ai/sdk
+                                              ▼
+                                   ┌──────────────────────┐
+                                   │  OpenCode Server     │
+                                   │  (헤드리스 AI 에이전트) │
+                                   │  /project-a  ←─┐     │
+                                   │  /project-b  ←─┤ dir │
+                                   │  /project-c  ←─┘     │
+                                   └──────────────────────┘
+```
+
+## 빠른 시작
+
+```bash
+# 의존성 설치
+npm install
+
+# 환경변수 설정
+cp .env.example .env
+# .env 파일을 편집하여 TELEGRAM_BOT_TOKEN, PROJECTS 등을 설정
+
+# 개발 모드 실행
+npm run dev
+```
+
+## 기술 스택
+
+- **Runtime**: Node.js 20+, TypeScript
+- **Framework**: Express 5
+- **Telegram**: Telegraf
+- **AI**: @opencode-ai/sdk
+- **Build**: tsx (개발), tsc (빌드)
+
+---
+
+# 개발 히스토리
+
+이하는 이 프로젝트의 전체 대화 히스토리를 세션별로 정리한 것입니다.
 
 ---
 
@@ -14,6 +71,7 @@
 6. [세션 6: MarkdownV2 예약 문자 이스케이프 오류 수정](#세션-6-markdownv2-예약-문자-이스케이프-오류-수정)
 7. [세션 7: 글로벌 에러 핸들러 + 텔레그램 에러 알림](#세션-7-글로벌-에러-핸들러--텔레그램-에러-알림)
 8. [세션 8: 프로젝트 공개 전 보안 점검 + Git 히스토리 정리](#세션-8-프로젝트-공개-전-보안-점검--git-히스토리-정리)
+9. [세션 9: 프로젝트 공개 전환 + README 소개 추가](#세션-9-프로젝트-공개-전환--readme-소개-추가)
 
 ---
 
@@ -502,6 +560,24 @@ Private repository 생성 완료: **https://github.com/(GitHub username)/opencod
 
 ---
 
+## 세션 9: 프로젝트 공개 전환 + README 소개 추가
+
+> 경로: `~/workspace/opencode-chat-router`
+
+### 대화 1: 프로젝트 공개 전환 + README 소개
+
+**사용자:**
+> 이 프로젝트를 공개로 바꿔줘. 그리고 README.md의 첫 부분에 이 프로젝트가 어떤 역할을 하는지 기능을 소개하는 부분을 추가해서 커밋 & 푸시해줘.
+
+**OpenCode 응답:**
+1. `gh repo edit --visibility public` 으로 GitHub 저장소를 public 전환
+2. README.md 상단에 프로젝트 소개 섹션 추가: 주요 기능, 아키텍처 다이어그램, 빠른 시작 가이드, 기술 스택
+3. 기존 개발 히스토리는 하단에 유지
+
+변경 파일: `README.md`
+
+---
+
 ## 전체 타임라인 요약
 
 | 순서 | 내용 | 결과 |
@@ -530,3 +606,4 @@ Private repository 생성 완료: **https://github.com/(GitHub username)/opencod
 | 22 | 에러 발생 시 텔레그램 알림 | notifyError()로 허용 사용자에게 전송 |
 | 23 | 프로젝트 공개 전 보안 점검 | 이메일, 로컬 경로 노출 발견 |
 | 24 | Git 히스토리 정리 (filter-repo) | 민감 정보 치환 + force push |
+| 25 | 프로젝트 public 전환 + README 소개 추가 | 기능 소개, 아키텍처, 빠른 시작 가이드 |
