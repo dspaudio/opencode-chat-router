@@ -468,7 +468,7 @@ Private repository 생성 완료: **https://github.com/(GitHub username)/opencod
 **OpenCode 응답:**
 전체 소스 코드 + Git 히스토리 보안 스캔 수행. 발견된 문제:
 
-- **Critical (Git 히스토리)**: 초기 커밋(ccf8c2c)에 개인 이메일(`user@example.com`)과 로컬 경로(`/path/to/workspace/...`)가 남아있음. 이후 sanitize 커밋으로 현재 파일에서는 제거되었지만, 히스토리에서 열람 가능.
+- **Critical (Git 히스토리)**: 초기 커밋에 개인 이메일과 로컬 경로가 남아있음. 이후 sanitize 커밋으로 현재 파일에서는 제거되었지만, 히스토리에서 열람 가능.
 - **High (현재 코드)**: `src/config.ts`에 `GOOGLE_ACCOUNT_EMAIL` 기본값으로 개인 이메일 하드코딩.
 - **양호**: `.env`는 `.gitignore`에 의해 제외, 실제 토큰 값은 히스토리에 없음.
 
@@ -488,8 +488,8 @@ Private repository 생성 완료: **https://github.com/(GitHub username)/opencod
 
 1. `src/config.ts`에서 하드코딩된 이메일 기본값 제거 (`optionalEnv` fallback → `undefined`)
 2. `git-filter-repo` 설치 후 치환 규칙 적용:
-   - `user@example.com` → `user@example.com`
-   - `/path/to/workspace/` → `/path/to/workspace/`
+   - 개인 이메일 → `user@example.com`
+   - 로컬 경로 → `/path/to/workspace/`
 3. 전체 커밋 히스토리에서 민감 정보 치환 완료
 4. `git push --force` 실행 (filter-repo가 remote 제거하므로 재추가 후 force push)
 
