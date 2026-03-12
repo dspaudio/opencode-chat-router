@@ -35,10 +35,7 @@ export const config = {
     clientId: process.env["GOOGLE_CLIENT_ID"] || undefined,
     clientSecret: process.env["GOOGLE_CLIENT_SECRET"] || undefined,
     refreshToken: process.env["GOOGLE_REFRESH_TOKEN"] || undefined,
-    accountEmail: optionalEnv(
-      "GOOGLE_ACCOUNT_EMAIL",
-      "user@example.com",
-    ),
+    accountEmail: process.env["GOOGLE_ACCOUNT_EMAIL"] || undefined,
   },
 
   telegram: {
