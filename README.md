@@ -72,6 +72,7 @@ npm run dev
 7. [세션 7: 글로벌 에러 핸들러 + 텔레그램 에러 알림](#세션-7-글로벌-에러-핸들러--텔레그램-에러-알림)
 8. [세션 8: 프로젝트 공개 전 보안 점검 + Git 히스토리 정리](#세션-8-프로젝트-공개-전-보안-점검--git-히스토리-정리)
 9. [세션 9: 프로젝트 공개 전환 + README 소개 추가](#세션-9-프로젝트-공개-전환--readme-소개-추가)
+10. [세션 10: OpenCode question 이벤트 텔레그램 연동](#세션-10-opencode-question-이벤트-텔레그램-연동)
 
 ---
 
@@ -578,6 +579,50 @@ Private repository 생성 완료: **https://github.com/(GitHub username)/opencod
 
 ---
 
+## 세션 10: OpenCode question 이벤트 텔레그램 연동
+
+> 경로: `~/workspace/opencode-chat-router`
+
+### 대화 1: OpenCode question 이벤트 미처리 문제
+
+**사용자:**
+> opencode가 question을 던졌는데, 텔레그램에서는 처리를 하지 못하는 문제가 발생하는 것 같아.
+
+**OpenCode 응답:**
+원인 분석:
+- SSE 이벤트 루프에서 `question.asked` 이벤트를 처리하지 않음
+- OpenCode 에이전트가 question tool을 사용하면 답변을 기다리며 멈추고, `session.idle`이 발생하지 않아 텔레그램도 "처리 중..."에서 무한 대기
+- 추가로 SDK v1 API에는 question 관련 타입/API가 아예 없어 v2 마이그레이션이 필요
+
+수정 내용:
+
+**SDK v1 → v2 마이그레이션 (`src/opencode/client.ts`)**
+- import를 `@opencode-ai/sdk` → `@opencode-ai/sdk/v2`로 변경
+- v2 flat 파라미터 방식으로 API 호출 변경 (body/query/path 래핑 제거)
+- `permission.updated` → `permission.asked` 이벤트명 변경
+- `sdk.postSessionIdPermissionsPermissionId()` → `sdk.permission.reply()` 변경
+- `sendPrompt`에 `onQuestion?: QuestionCallback` 파라미터 추가
+- SSE 루프에 `question.asked` 핸들러 추가 → `sdk.question.reply()` 또는 `.reject()` 호출
+
+**텔레그램 inline keyboard 질문 연동 (`src/telegram/bot.ts`)**
+- `QuestionRequest`, `QuestionAnswer` 타입 import
+- `PendingQuestion` 인터페이스 + `pendingQuestions` Map으로 질문 상태 관리
+- callback_data 64바이트 제한 대응을 위한 shortId 매핑 방식
+- `bot.on("callback_query")` 핸들러: 버튼 클릭 시 답변 처리 + 메시지 업데이트
+- `processPrompt`에서 `onQuestion` 콜백 구현: 질문별 inline keyboard 전송, 5분 타임아웃
+
+동작 흐름:
+```
+OpenCode question → SSE question.asked → onQuestion 콜백
+  → 텔레그램 inline keyboard 메시지 전송
+  → 사용자 버튼 클릭 → callback_query → pendingQuestion resolve
+  → sdk.question.reply() → OpenCode 처리 계속 → session.idle → 최종 응답
+```
+
+변경 파일: `src/opencode/client.ts`, `src/telegram/bot.ts`
+
+---
+
 ## 전체 타임라인 요약
 
 | 순서 | 내용 | 결과 |
@@ -607,3 +652,4 @@ Private repository 생성 완료: **https://github.com/(GitHub username)/opencod
 | 23 | 프로젝트 공개 전 보안 점검 | 이메일, 로컬 경로 노출 발견 |
 | 24 | Git 히스토리 정리 (filter-repo) | 민감 정보 치환 + force push |
 | 25 | 프로젝트 public 전환 + README 소개 추가 | 기능 소개, 아키텍처, 빠른 시작 가이드 |
+| 26 | OpenCode question 이벤트 텔레그램 연동 | SDK v2 마이그레이션 + inline keyboard 질문 처리 |
