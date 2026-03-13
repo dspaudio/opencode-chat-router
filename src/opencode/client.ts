@@ -5,7 +5,9 @@ import {
   type Event,
   type AssistantMessage,
   type Part,
-} from "@opencode-ai/sdk";
+  type QuestionRequest,
+  type QuestionAnswer,
+} from "@opencode-ai/sdk/v2";
 import { config } from "../config.js";
 
 let client: OpencodeClient | null = null;
@@ -51,10 +53,13 @@ export interface PromptResult {
   tokens: { input: number; output: number };
 }
 
+export type QuestionCallback = (request: QuestionRequest) => Promise<QuestionAnswer[]>;
+
 export async function sendPrompt(
   message: string,
   directory: string,
   sessionId?: string,
+  onQuestion?: QuestionCallback,
 ): Promise<PromptResult> {
   const sdk = await getClient();
 
@@ -62,8 +67,8 @@ export async function sendPrompt(
   let activeSessionId = sessionId;
   if (!activeSessionId) {
     const { data: session } = await sdk.session.create({
-      body: { title: message.slice(0, 50) },
-      query: { directory },
+      title: message.slice(0, 50),
+      directory,
     });
     if (!session) throw new Error("세션 생성 실패");
     activeSessionId = session.id;
@@ -71,16 +76,14 @@ export async function sendPrompt(
 
   // 2) SSE 이벤트 스트림 구독
   const sseResult = await sdk.event.subscribe({
-    query: { directory },
+    directory,
   });
 
   // 3) 비동기 프롬프트 전송 (즉시 반환)
   await sdk.session.promptAsync({
-    path: { id: activeSessionId },
-    body: {
-      parts: [{ type: "text", text: message }],
-    },
-    query: { directory },
+    sessionID: activeSessionId,
+    parts: [{ type: "text", text: message }],
+    directory,
   });
 
   // 4) SSE 스트림에서 이벤트를 소비하며 permission 자동 승인 + 완료 대기
@@ -91,15 +94,38 @@ export async function sendPrompt(
       const ev = event as Event;
 
       // permission 요청 → 자동 승인
-      if (ev.type === "permission.updated") {
+      if (ev.type === "permission.asked") {
         const perm = ev.properties;
         if (perm.sessionID === activeSessionId) {
-          console.log(`[opencode] permission 자동 승인: ${perm.title} (${perm.id})`);
-          await sdk.postSessionIdPermissionsPermissionId({
-            path: { id: activeSessionId, permissionID: perm.id },
-            body: { response: "once" },
-            query: { directory },
+          console.log(`[opencode] permission 자동 승인: ${perm.permission} (${perm.id})`);
+          await sdk.permission.reply({
+            requestID: perm.id,
+            reply: "once",
+            directory,
           });
+        }
+      }
+
+      if (ev.type === "question.asked") {
+        const request = ev.properties;
+        if (request.sessionID === activeSessionId && onQuestion) {
+          console.log(
+            `[opencode] question 수신: ${request.questions.map((q) => q.header).join(", ")}`,
+          );
+          try {
+            const answers = await onQuestion(request);
+            await sdk.question.reply({
+              requestID: request.id,
+              answers,
+              directory,
+            });
+          } catch (err) {
+            console.warn("[opencode] question 응답 실패, reject 처리:", err);
+            await sdk.question.reject({
+              requestID: request.id,
+              directory,
+            });
+          }
         }
       }
 
@@ -140,8 +166,8 @@ export async function sendPrompt(
 
   // 5) 세션 메시지 조회로 최종 결과 수집
   const { data: messages } = await sdk.session.messages({
-    path: { id: activeSessionId },
-    query: { directory },
+    sessionID: activeSessionId,
+    directory,
   });
 
   if (!messages || messages.length === 0) {

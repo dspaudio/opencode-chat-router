@@ -1,6 +1,7 @@
 import { Telegraf } from "telegraf";
 import { config, findProject } from "../config.js";
 import { sendPrompt, type PromptResult } from "../opencode/client.js";
+import type { QuestionRequest, QuestionAnswer } from "@opencode-ai/sdk/v2";
 import {
   getOrCreateState,
   setActiveProject,
@@ -10,6 +11,24 @@ import {
 import { markdownToTelegramHtml } from "./markdown.js";
 
 const MAX_TELEGRAM_LENGTH = 4096;
+
+interface PendingQuestion {
+  resolve: (answers: QuestionAnswer[]) => void;
+  reject: (err: Error) => void;
+  request: QuestionRequest;
+  chatId: number;
+  messageIds: number[];
+  shortId: string;
+}
+
+const pendingQuestions = new Map<string, PendingQuestion>();
+const pendingShortToRequestId = new Map<string, string>();
+let questionShortSeq = 0;
+
+function toShortQuestionId(requestId: string): string {
+  questionShortSeq += 1;
+  return `${requestId.slice(0, 8)}${questionShortSeq.toString(36)}`;
+}
 
 function truncate(text: string, max: number): string {
   if (text.length <= max) return text;
@@ -191,6 +210,68 @@ export function createTelegramBot(): Telegraf {
     });
   });
 
+  bot.on("callback_query", async (ctx) => {
+    const data = "data" in ctx.callbackQuery ? ctx.callbackQuery.data : undefined;
+    if (!data || !data.startsWith("q:")) return;
+
+    const parts = data.split(":");
+    if (parts.length < 4) {
+      await ctx.answerCbQuery("잘못된 질문 응답입니다.");
+      return;
+    }
+
+    const shortId = parts[1];
+    const questionIndex = Number.parseInt(parts[2] ?? "", 10);
+    const optionIndex = Number.parseInt(parts[3] ?? "", 10);
+
+    if (Number.isNaN(questionIndex) || Number.isNaN(optionIndex)) {
+      await ctx.answerCbQuery("잘못된 질문 응답입니다.");
+      return;
+    }
+
+    const requestId = pendingShortToRequestId.get(shortId);
+    if (!requestId) {
+      await ctx.answerCbQuery("이미 처리된 질문입니다.");
+      return;
+    }
+
+    const pending = pendingQuestions.get(requestId);
+    if (!pending) {
+      pendingShortToRequestId.delete(shortId);
+      await ctx.answerCbQuery("이미 처리된 질문입니다.");
+      return;
+    }
+
+    if (pending.chatId !== ctx.chat?.id) {
+      await ctx.answerCbQuery("다른 대화의 질문입니다.");
+      return;
+    }
+
+    const question = pending.request.questions[questionIndex];
+    const selected = question?.options[optionIndex];
+    if (!question || !selected) {
+      await ctx.answerCbQuery("선택지를 찾을 수 없습니다.");
+      return;
+    }
+
+    const answers: QuestionAnswer[] = pending.request.questions.map((_, i) => {
+      if (i === questionIndex) return [selected.label];
+      return [];
+    });
+
+    pendingQuestions.delete(requestId);
+    pendingShortToRequestId.delete(shortId);
+    pending.resolve(answers);
+
+    await ctx.answerCbQuery(`선택됨: ${selected.label}`);
+    try {
+      await ctx.editMessageText(
+        `✅ <b>${escapeHtmlEntities(question.header || "질문")}</b>\n선택: ${escapeHtmlEntities(selected.label)}`,
+        { parse_mode: "HTML" },
+      );
+    } catch {}
+  });
+
   bot.on("text", (ctx) => {
     const userId = String(ctx.from.id);
     const text = ctx.message.text;
@@ -226,10 +307,61 @@ async function processPrompt(
     pendingMessageId = pending.message_id;
 
     const existingSessionId = getSessionId(userId, projectAlias);
+    const onQuestion = async (request: QuestionRequest): Promise<QuestionAnswer[]> => {
+      return new Promise<QuestionAnswer[]>((resolve, reject) => {
+        const messageIds: number[] = [];
+        const shortId = toShortQuestionId(request.id);
+
+        pendingQuestions.set(request.id, {
+          resolve,
+          reject,
+          request,
+          chatId: ctx.chat.id,
+          messageIds,
+          shortId,
+        });
+        pendingShortToRequestId.set(shortId, request.id);
+
+        for (let i = 0; i < request.questions.length; i += 1) {
+          const q = request.questions[i];
+          const header = escapeHtmlEntities(q.header);
+          const question = escapeHtmlEntities(q.question);
+          const text = `❓ <b>${header}</b>\n${question}`;
+
+          const buttons = q.options.map((_, optionIndex) => [{
+            text: q.options[optionIndex]?.label ?? "",
+            callback_data: `q:${shortId}:${i}:${optionIndex}`,
+          }]);
+
+          void ctx.reply(text, {
+            parse_mode: "HTML",
+            reply_markup: { inline_keyboard: buttons },
+          }).then((msg: { message_id: number }) => {
+            messageIds.push(msg.message_id);
+          }).catch((error: unknown) => {
+            if (pendingQuestions.has(request.id)) {
+              pendingQuestions.delete(request.id);
+              pendingShortToRequestId.delete(shortId);
+              reject(error instanceof Error ? error : new Error(String(error)));
+            }
+          });
+        }
+
+        setTimeout(() => {
+          const pending = pendingQuestions.get(request.id);
+          if (!pending) return;
+          pendingQuestions.delete(request.id);
+          pendingShortToRequestId.delete(pending.shortId);
+          pending.reject(new Error("question 응답 타임아웃 (5분)"));
+        }, 5 * 60 * 1000);
+      });
+    };
+
     const result: PromptResult = await sendPrompt(
       message,
       directory,
       existingSessionId,
+      onQuestion,
     );
 
     setSessionId(userId, projectAlias, result.sessionId);
