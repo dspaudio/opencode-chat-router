@@ -74,6 +74,7 @@ npm run dev
 9. [세션 9: 프로젝트 공개 전환 + README 소개 추가](#세션-9-프로젝트-공개-전환--readme-소개-추가)
 10. [세션 10: OpenCode question 이벤트 텔레그램 연동](#세션-10-opencode-question-이벤트-텔레그램-연동)
 11. [세션 11: @opencode-ai/sdk 버전 업데이트](#세션-11-opencode-aisdk-버전-업데이트)
+12. [세션 12: 세션 생성 실패 에러 핸들링 개선](#세션-12-세션-생성-실패-에러-핸들링-개선)
 
 ---
 
@@ -641,6 +642,30 @@ OpenCode question → SSE question.asked → onQuestion 콜백
 
 ---
 
+## 세션 12: 세션 생성 실패 에러 핸들링 개선
+
+> 경로: `~/workspace/opencode-chat-router`
+
+### 대화 1: "세션 생성 실패" 오류 원인 분석 및 수정
+
+**사용자:**
+> 여전히 [telegram] OpenCode 오류: 세션 생성 실패라는 오류가 나오는데?
+
+**OpenCode 응답:**
+원인 분석:
+- `sdk.session.create()` 호출 시 SDK가 `{ data, error }` 형태로 응답을 반환하는데, 기존 코드에서 `error` 필드를 무시하고 `data`만 확인하여 실패 원인 파악 불가
+- `tryConnectExisting()`의 `path.get()` 검증이 응답 데이터를 확인하지 않아, 비호환 서비스가 해당 포트에 있어도 연결 성공으로 판단할 수 있음
+- `createOpencode()` 서버 spawn 실패 시 에러가 래핑되지 않아 포트 정보 등 컨텍스트 누락
+
+수정 내용 (`src/opencode/client.ts`):
+1. `session.create` 실패 시 SDK 응답의 `error` 필드와 HTTP 상태 코드를 에러 메시지에 포함
+2. `tryConnectExisting`에서 `path.get()` 응답의 `data` 존재 여부 검증 추가
+3. `createOpencode` 서버 시작 실패 시 포트 번호와 원인을 포함한 에러 메시지로 래핑
+
+변경 파일: `src/opencode/client.ts`
+
+---
+
 ## 전체 타임라인 요약
 
 | 순서 | 내용 | 결과 |
@@ -672,3 +697,4 @@ OpenCode question → SSE question.asked → onQuestion 콜백
 | 25 | 프로젝트 public 전환 + README 소개 추가 | 기능 소개, 아키텍처, 빠른 시작 가이드 |
 | 26 | OpenCode question 이벤트 텔레그램 연동 | SDK v2 마이그레이션 + inline keyboard 질문 처리 |
 | 27 | @opencode-ai/sdk 버전 업데이트 | ^1.2.24 → ^1.3.2 |
+| 28 | 세션 생성 실패 에러 핸들링 개선 | 에러 상세화 + 연결 검증 강화 + 서버 시작 에러 래핑 |
