@@ -73,6 +73,7 @@ npm run dev
 8. [세션 8: 프로젝트 공개 전 보안 점검 + Git 히스토리 정리](#세션-8-프로젝트-공개-전-보안-점검--git-히스토리-정리)
 9. [세션 9: 프로젝트 공개 전환 + README 소개 추가](#세션-9-프로젝트-공개-전환--readme-소개-추가)
 10. [세션 10: OpenCode question 이벤트 텔레그램 연동](#세션-10-opencode-question-이벤트-텔레그램-연동)
+11. [세션 11: @opencode-ai/sdk 버전 업데이트](#세션-11-opencode-aisdk-버전-업데이트)
 
 ---
 
@@ -623,6 +624,23 @@ OpenCode question → SSE question.asked → onQuestion 콜백
 
 ---
 
+## 세션 11: @opencode-ai/sdk 버전 업데이트
+
+> 경로: `~/workspace/opencode-chat-router`
+
+### 대화 1: SDK 의존성 버전 업데이트
+
+**사용자:**
+> @opencode-ai/sdk 패키지 버전 업데이트
+
+**변경 내용:**
+- `@opencode-ai/sdk` 버전을 `^1.2.24` → `^1.3.2`로 업데이트
+- `package-lock.json` 동기화
+
+변경 파일: `package.json`, `package-lock.json`
+
+---
+
 ## 전체 타임라인 요약
 
 | 순서 | 내용 | 결과 |
@@ -653,3 +671,4 @@ OpenCode question → SSE question.asked → onQuestion 콜백
 | 24 | Git 히스토리 정리 (filter-repo) | 민감 정보 치환 + force push |
 | 25 | 프로젝트 public 전환 + README 소개 추가 | 기능 소개, 아키텍처, 빠른 시작 가이드 |
 | 26 | OpenCode question 이벤트 텔레그램 연동 | SDK v2 마이그레이션 + inline keyboard 질문 처리 |
+| 27 | @opencode-ai/sdk 버전 업데이트 | ^1.2.24 → ^1.3.2 |
