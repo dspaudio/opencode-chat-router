@@ -17,7 +17,8 @@ async function tryConnectExisting(port: number): Promise<OpencodeClient | null> 
   const url = `http://127.0.0.1:${port}`;
   try {
     const testClient = createOpencodeClient({ baseUrl: url });
-    await testClient.path.get();
+    const result = await testClient.path.get();
+    if (!result.data) return null;
     console.log(`[opencode] 기존 서버에 연결됨: ${url}`);
     return testClient;
   } catch {
@@ -35,14 +36,17 @@ export async function getClient(): Promise<OpencodeClient> {
   }
 
   console.log("[opencode] 기존 서버 없음, 새 서버 시작 중...");
-  const result = await createOpencode({
-    port: config.opencode.port,
-  });
-
-  client = result.client;
-  serverClose = result.server.close;
-
-  console.log(`[opencode] 서버 시작됨: ${result.server.url}`);
+  try {
+    const result = await createOpencode({
+      port: config.opencode.port,
+    });
+    client = result.client;
+    serverClose = result.server.close;
+    console.log(`[opencode] 서버 시작됨: ${result.server.url}`);
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    throw new Error(`[opencode] 서버 시작 실패 (포트 ${config.opencode.port}): ${msg}`);
+  }
   return client;
 }
 
@@ -66,11 +70,19 @@ export async function sendPrompt(
   // 1) 세션 생성 또는 기존 세션 사용
   let activeSessionId = sessionId;
   if (!activeSessionId) {
-    const { data: session } = await sdk.session.create({
+    const response = await sdk.session.create({
       title: message.slice(0, 50),
       directory,
     });
-    if (!session) throw new Error("세션 생성 실패");
+    const session = response.data;
+    if (!session) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- SDK conditional type narrowing 실패 workaround
+      const raw = response as any;
+      const errDetail = raw.error
+        ? (typeof raw.error === "object" ? JSON.stringify(raw.error) : String(raw.error))
+        : `HTTP ${raw.response?.status ?? "unknown"}`;
+      throw new Error(`세션 생성 실패: ${errDetail}`);
+    }
     activeSessionId = session.id;
   }
 
