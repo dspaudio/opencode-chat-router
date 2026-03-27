@@ -367,7 +367,9 @@ async function processPrompt(
     setSessionId(userId, projectAlias, result.sessionId);
 
     const htmlResponse = markdownToTelegramHtml(result.text);
-    const prefix = `🤖 <b>${escapeHtmlEntities(result.agent)}</b> · <i>${escapeHtmlEntities(result.mode)}</i> · <code>${escapeHtmlEntities(result.modelID)}</code>\n\n`;
+    const prefix = result.agent === result.mode
+      ? `🤖 <b>${escapeHtmlEntities(result.agent)}</b> · <code>${escapeHtmlEntities(result.modelID)}</code>\n\n`
+      : `🤖 <b>${escapeHtmlEntities(result.agent)}</b> · <i>${escapeHtmlEntities(result.mode)}</i> · <code>${escapeHtmlEntities(result.modelID)}</code>\n\n`;
 
     let thinkingSection = "";
     if (result.reasoning) {

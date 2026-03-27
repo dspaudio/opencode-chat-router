@@ -88,6 +88,7 @@ export async function sendPrompt(
       throw new Error(`세션 생성 실패: ${errDetail}`);
     }
     activeSessionId = session.id;
+    console.log(`[opencode] 새 세션: ${activeSessionId} (dir: ${directory})`);
   }
 
   // 2) SSE 이벤트 스트림 구독
@@ -201,6 +202,7 @@ export async function sendPrompt(
 
   const assistantMsg = lastEntry.info as AssistantMessage;
   const parts: Part[] = lastEntry.parts;
+  console.log(`[opencode] 응답 완료: agent=${assistantMsg.agent}, model=${assistantMsg.modelID}`);
 
   const textParts = parts
     .filter((p): p is Extract<Part, { type: "text" }> => p.type === "text")
