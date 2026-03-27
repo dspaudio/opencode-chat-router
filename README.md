@@ -75,6 +75,7 @@ npm run dev
 10. [세션 10: OpenCode question 이벤트 텔레그램 연동](#세션-10-opencode-question-이벤트-텔레그램-연동)
 11. [세션 11: @opencode-ai/sdk 버전 업데이트](#세션-11-opencode-aisdk-버전-업데이트)
 12. [세션 12: 세션 생성 실패 에러 핸들링 개선](#세션-12-세션-생성-실패-에러-핸들링-개선)
+13. [세션 13: 텔레그램 응답에 Agent/Mode prefix + Thinking 내용 표시](#세션-13-텔레그램-응답에-agentmode-prefix--thinking-내용-표시)
 
 ---
 
@@ -666,6 +667,47 @@ OpenCode question → SSE question.asked → onQuestion 콜백
 
 ---
 
+## 세션 13: 텔레그램 응답에 Agent/Mode prefix + Thinking 내용 표시
+
+> 경로: `~/workspace/opencode-chat-router`
+
+### 대화 1: Agent명, Mode, 모델명 prefix 추가 + Thinking 내용 반환 요청
+
+**사용자:**
+> 텔레그램으로 호출 했을 때 반환하는 내용에서 prefix로 Agent 명과 Mode를 함께 반환했으면 좋겠어. 그리고 Thinking 중인 내용도 반환했으면 좋겠어.
+
+**응답:**
+OpenCode SDK의 `AssistantMessage` 타입에 `agent`, `mode`, `modelID` 필드가 이미 존재하고, 메시지 parts에 `ReasoningPart` (`type: "reasoning"`) 타입이 thinking 내용을 담고 있음을 확인.
+
+수정 내용:
+
+**`src/opencode/client.ts`:**
+- `PromptResult` 인터페이스에 `agent`, `mode`, `modelID`, `reasoning` 필드 추가
+- `tokens`에 `reasoning` 카운트 추가
+- `sendPrompt()`에서 `ReasoningPart` 텍스트 수집 및 `AssistantMessage`의 agent/mode/modelID 정보 반환
+
+**`src/telegram/bot.ts`:**
+- 응답 상단에 prefix 추가: `🤖 <b>agent명</b> · <i>mode</i> · <code>modelID</code>`
+- thinking 내용이 있으면 `<blockquote>` 블록으로 표시 (1000자 제한)
+- footer에 reasoning 토큰 수 표시 (있을 경우 `🧠` 아이콘)
+
+텔레그램 응답 형식:
+```
+🤖 build · primary · claude-sonnet-4-20250514
+
+💭 Thinking
+(reasoning 내용)
+
+(실제 응답 내용)
+
+———
+📁 my-project | 💰 $0.0123 | 📊 1000→500 (🧠200)
+```
+
+변경 파일: `src/opencode/client.ts`, `src/telegram/bot.ts`
+
+---
+
 ## 전체 타임라인 요약
 
 | 순서 | 내용 | 결과 |
@@ -698,3 +740,4 @@ OpenCode question → SSE question.asked → onQuestion 콜백
 | 26 | OpenCode question 이벤트 텔레그램 연동 | SDK v2 마이그레이션 + inline keyboard 질문 처리 |
 | 27 | @opencode-ai/sdk 버전 업데이트 | ^1.2.24 → ^1.3.2 |
 | 28 | 세션 생성 실패 에러 핸들링 개선 | 에러 상세화 + 연결 검증 강화 + 서버 시작 에러 래핑 |
+| 29 | 텔레그램 응답에 Agent/Mode/모델 prefix + Thinking 표시 | PromptResult 확장 + prefix/reasoning 블록 추가 |
