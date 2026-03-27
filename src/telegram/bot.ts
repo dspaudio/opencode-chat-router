@@ -367,8 +367,18 @@ async function processPrompt(
     setSessionId(userId, projectAlias, result.sessionId);
 
     const htmlResponse = markdownToTelegramHtml(result.text);
-    const footer = `\n\n———\n📁 ${escapeHtmlEntities(projectAlias)} | 💰 $${escapeHtmlEntities(result.cost.toFixed(4))} | 📊 ${result.tokens.input}→${result.tokens.output}`;
-    const responseText = truncate(htmlResponse + footer, MAX_TELEGRAM_LENGTH);
+    const prefix = `🤖 <b>${escapeHtmlEntities(result.agent)}</b> · <i>${escapeHtmlEntities(result.mode)}</i> · <code>${escapeHtmlEntities(result.modelID)}</code>\n\n`;
+
+    let thinkingSection = "";
+    if (result.reasoning) {
+      const trimmedReasoning = result.reasoning.length > 1000
+        ? result.reasoning.slice(0, 1000) + "... (잘림)"
+        : result.reasoning;
+      thinkingSection = `<blockquote>💭 <b>Thinking</b>\n${escapeHtmlEntities(trimmedReasoning)}</blockquote>\n\n`;
+    }
+
+    const footer = `\n\n———\n📁 ${escapeHtmlEntities(projectAlias)} | 💰 $${escapeHtmlEntities(result.cost.toFixed(4))} | 📊 ${result.tokens.input}→${result.tokens.output}${result.tokens.reasoning > 0 ? ` (🧠${result.tokens.reasoning})` : ""}`;
+    const responseText = truncate(prefix + thinkingSection + htmlResponse + footer, MAX_TELEGRAM_LENGTH);
 
     if (pendingMessageId) {
       await safeEditMessageText(

@@ -52,9 +52,13 @@ export async function getClient(): Promise<OpencodeClient> {
 
 export interface PromptResult {
   text: string;
+  reasoning: string;
+  agent: string;
+  mode: string;
+  modelID: string;
   sessionId: string;
   cost: number;
-  tokens: { input: number; output: number };
+  tokens: { input: number; output: number; reasoning: number };
 }
 
 export type QuestionCallback = (request: QuestionRequest) => Promise<QuestionAnswer[]>;
@@ -203,13 +207,23 @@ export async function sendPrompt(
     .map((p) => p.text)
     .join("\n");
 
+  const reasoningParts = parts
+    .filter((p): p is Extract<Part, { type: "reasoning" }> => p.type === "reasoning")
+    .map((p) => p.text)
+    .join("\n");
+
   return {
     text: textParts || "(응답 없음)",
+    reasoning: reasoningParts,
+    agent: assistantMsg.agent,
+    mode: assistantMsg.mode,
+    modelID: assistantMsg.modelID,
     sessionId: activeSessionId,
     cost: assistantMsg.cost,
     tokens: {
       input: assistantMsg.tokens.input,
       output: assistantMsg.tokens.output,
+      reasoning: assistantMsg.tokens.reasoning,
     },
   };
 }
